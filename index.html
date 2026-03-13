@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QR Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="src/css/main.css">
+</head>
+<body>
+  <div class="top">
+    <div class="eyebrow">Offline Tool</div>
+    <h1>QR Generator</h1>
+  </div>
+
+  <main class="card">
+    <form id="qr-form" onsubmit="event.preventDefault();">
+      <div class="form-group">
+        <label for="qr-data" class="form-label">Content (URL, text, email, phone)</label>
+        <textarea id="qr-data" class="form-control" rows="3" placeholder="Enter content here..." required></textarea>
+      </div>
+
+      <div class="form-group options-grid">
+        <div>
+          <label for="qr-size" class="form-label">Size</label>
+          <select id="qr-size" class="form-control">
+            <option value="256">256x256</option>
+            <option value="512" selected>512x512</option>
+            <option value="1024">1024x1024</option>
+            <option value="2048">2048x2048</option>
+          </select>
+        </div>
+        <div>
+          <label for="qr-color-dark" class="form-label">Foreground</label>
+          <input type="color" id="qr-color-dark" class="form-control" value="#ffffff">
+        </div>
+        <div>
+          <label for="qr-color-light" class="form-label">Background</label>
+          <input type="color" id="qr-color-light" class="form-control" value="#000000">
+        </div>
+      </div>
+
+      <div class="form-group mb-lg">
+        <label for="qr-logo" class="form-label">Optional Logo Overlay</label>
+        <input type="file" id="qr-logo" class="form-control" accept="image/png, image/jpeg, image/svg+xml">
+      </div>
+
+      <button type="submit" id="btn-generate" class="btn-block">Generate QR Code</button>
+    </form>
+
+    <div id="qr-result" class="hidden">
+      <div class="other">
+         <div class="label">Preview</div>
+      </div>
+      <div class="qr-preview" id="qr-preview-container"></div>
+      <button id="btn-download" class="btn-block ghost">Download PNG</button>
+    </div>
+  </main>
+
+  <div id="toast" class="toast">QR Code Downloaded</div>
+
+  <script src="src/js/qrcode.min.js"></script>
+  <script>
+    // Load elements
+    const form = document.getElementById('qr-form');
+    const dataInput = document.getElementById('qr-data');
+    const sizeInput = document.getElementById('qr-size');
+    const colorDarkInput = document.getElementById('qr-color-dark');
+    const colorLightInput = document.getElementById('qr-color-light');
+    const logoInput = document.getElementById('qr-logo');
+    const previewContainer = document.getElementById('qr-preview-container');
+    const resultSection = document.getElementById('qr-result');
+    const downloadBtn = document.getElementById('btn-download');
+    const toast = document.getElementById('toast');
+
+    let currentCanvas = null;
+
+    // Draw logo inside the QR code
+    function drawLogo(canvas, logoFile, canvasSize, bgFill) {
+      return new Promise((resolve, reject) => {
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+        
+        img.onload = () => {
+          const logoSize = canvasSize * 0.25;
+          const x = (canvasSize - logoSize) / 2;
+          const y = (canvasSize - logoSize) / 2;
+          
+          ctx.fillStyle = bgFill || '#ffffff';
+          ctx.fillRect(x - 4, y - 4, logoSize + 8, logoSize + 8);
+          
+          ctx.drawImage(img, x, y, logoSize, logoSize);
+          resolve();
+        };
+        
+        img.onerror = reject;
+        img.src = URL.createObjectURL(logoFile);
+      });
+    }
+
+    // Generate QR code logic
+    async function generateQRCode(data, options) {
+      const canvas = document.createElement('canvas');
+      const size = parseInt(options.width, 10);
+      
+      canvas.width = size;
+      canvas.height = size;
+
+      const qrOptions = {
+        width: size,
+        margin: 2,
+        color: {
+          dark: options.colorDark,
+          light: options.colorLight
+        },
+        errorCorrectionLevel: options.logo ? 'H' : 'M'
+      };
+
+      await QRCode.toCanvas(canvas, data, qrOptions);
+
+      if (options.logo) {
+        await drawLogo(canvas, options.logo, size, options.colorLight);
+      }
+
+      return canvas;
+    }
+
+    // Process logic on click
+    form.addEventListener('submit', async () => {
+      const data = dataInput.value.trim();
+      if (!data) return;
+
+      const options = {
+        width: sizeInput.value,
+        colorDark: colorDarkInput.value,
+        colorLight: colorLightInput.value,
+        logo: logoInput.files[0] || null
+      };
+
+      try {
+        currentCanvas = await generateQRCode(data, options);
+        
+        previewContainer.innerHTML = '';
+        
+        const previewCanvas = document.createElement('canvas');
+        const ctx = previewCanvas.getContext('2d');
+        previewCanvas.width = currentCanvas.width;
+        previewCanvas.height = currentCanvas.height;
+        ctx.drawImage(currentCanvas, 0, 0);
+        
+        previewCanvas.style.maxWidth = '100%';
+        previewCanvas.style.height = 'auto';
+        previewCanvas.style.borderRadius = '8px';
+        
+        previewContainer.appendChild(previewCanvas);
+        resultSection.classList.remove('hidden');
+        
+        resultSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      } catch (error) {
+        console.error('Failed to generate QR code', error);
+      }
+    });
+
+    // Handle Image PNG download
+    downloadBtn.addEventListener('click', () => {
+      if (currentCanvas) {
+        const dataUrl = currentCanvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        
+        link.href = dataUrl;
+        link.download = 'qr-code.png';
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 3000);
+      }
+    });
+  </script>
+</body>
+</html>
