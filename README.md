@@ -41,13 +41,6 @@ qr/
 1. Clone or download this project.
 2. Serve the directory using a built-in web server to ensure ES Modules resolve correctly (e.g. `python -m http.server`).
 
-## Deployment
-
-The project is fully compatible with GitHub Pages:
-1. Commit the source to a GitHub repository.
-2. In Repository Settings > Pages, select the `main` branch and the `/ (root)` directory.
-3. Save. The application will be live in minutes without any build steps.
-
 ## Usage
 
 1. **Content**: Fill the text area with a URL, text, email, etc.
